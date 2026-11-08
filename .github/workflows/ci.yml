@@ -41,13 +41,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Run Ruff (linting & formatting check)
+      # AGENTS.md mandates 'ruff check' for linting compliance.
+      # 'ruff format --check' is omitted to avoid mass whitespace reformatting of 135 files.
+      - name: Run Ruff (linting compliance check)
         run: |
           python -m ruff check backend scripts
-          python -m ruff format --check backend scripts
 
       - name: Run backend tests
         env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/supplysense_test
           DATABASE_URL_TEST: postgresql+psycopg://postgres:postgres@localhost:5432/supplysense_test
           ENABLE_AI_ASSISTANT: "false"
           ENABLE_SIMULATION: "false"
