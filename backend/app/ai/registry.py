@@ -17,6 +17,7 @@ the keys ``data``, ``source``, ``label`` (a ``DataSourceLabel`` value), and
 optionally ``limitations``, ``analysis_date``, ``provenance``.
 """
 
+import builtins
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -127,14 +128,14 @@ class ToolRegistry:
             )
         return spec
 
-    def list(self, category: str | None = None) -> list[ToolSpec]:
+    def list(self, category: str | None = None) -> builtins.list[ToolSpec]:
         """Return specs sorted by name, optionally filtered by category."""
         specs = sorted(self._tools.values(), key=lambda spec: spec.name)
         if category is not None:
             specs = [spec for spec in specs if spec.category == category]
         return specs
 
-    def names(self) -> list[str]:
+    def names(self) -> builtins.list[str]:
         """Return all registered names (sorted)."""
         return sorted(self._tools)
 
