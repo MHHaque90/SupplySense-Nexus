@@ -1,0 +1,305 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "SupplySense Nexus — System Architecture",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "entry-surfaces",
+        "label": "Entry surfaces",
+        "focus": ["frontend", "api", "cli"],
+        "note": "Only the CLI and three health routes reach into the backend today."
+      },
+      {
+        "id": "data-path",
+        "label": "Write and read paths",
+        "focus": ["cli", "ingestion", "postgres", "foundation", "forecasting"],
+        "note": "Synthetic writes and ORM reads are the only database traffic."
+      },
+      {
+        "id": "decision-stack",
+        "label": "Decision stack",
+        "focus": ["inventory", "procurement", "risk", "simulation", "replay"],
+        "note": "Dependency-ordered intelligence packages ending at Decision Replay."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "frontend",
+      "type": "frontend",
+      "label": "Static frontend",
+      "sublabel": "index.html · no API calls",
+      "tag": "Phase 0 scaffold",
+      "pos": [40, 48],
+      "size": [170, 60]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "FastAPI API layer",
+      "sublabel": "3 health routes · no auth",
+      "tag": "3 routes only",
+      "pos": [250, 50],
+      "size": [170, 60]
+    },
+    {
+      "id": "cli",
+      "type": "backend",
+      "label": "CLI entry points",
+      "sublabel": "2 CLIs · 11 subcommands",
+      "tag": "11 subcommands",
+      "pos": [40, 200],
+      "size": [170, 80]
+    },
+    {
+      "id": "ingestion",
+      "type": "backend",
+      "label": "Ingestion & quality",
+      "sublabel": "generate · load · checks",
+      "tag": "synthetic",
+      "pos": [250, 200],
+      "size": [170, 80]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL 17",
+      "sublabel": "31 tables · Alembic",
+      "tag": "supplysense",
+      "pos": [500, 48],
+      "size": [170, 64]
+    },
+    {
+      "id": "foundation",
+      "type": "backend",
+      "label": "Analytics foundation",
+      "sublabel": "datasets · features · kpis",
+      "tag": "Phase 3",
+      "pos": [470, 340],
+      "size": [170, 80]
+    },
+    {
+      "id": "forecasting",
+      "type": "backend",
+      "label": "Demand forecasting",
+      "sublabel": "forecasting · 12 modules",
+      "tag": "Phase 4",
+      "pos": [700, 340],
+      "size": [170, 80]
+    },
+    {
+      "id": "inventory",
+      "type": "backend",
+      "label": "Inventory intelligence",
+      "sublabel": "inventory · 15 modules",
+      "tag": "Phase 5",
+      "pos": [940, 200],
+      "size": [170, 80]
+    },
+    {
+      "id": "procurement",
+      "type": "backend",
+      "label": "Supplier \u0026 procurement",
+      "sublabel": "procurement · 13 modules",
+      "tag": "Phase 6",
+      "pos": [1150, 200],
+      "size": [170, 80]
+    },
+    {
+      "id": "risk",
+      "type": "backend",
+      "label": "Risk intelligence",
+      "sublabel": "risk · 14 modules",
+      "tag": "Phase 7",
+      "pos": [1150, 360],
+      "size": [170, 80]
+    },
+    {
+      "id": "simulation",
+      "type": "backend",
+      "label": "Disruption simulation",
+      "sublabel": "simulation · 15 modules",
+      "tag": "Phase 8",
+      "pos": [940, 500],
+      "size": [170, 80]
+    },
+    {
+      "id": "replay",
+      "type": "backend",
+      "label": "Decision Replay Lab",
+      "sublabel": "replay · 11 modules",
+      "tag": "Phase 9 · no ranking",
+      "pos": [1150, 500],
+      "size": [170, 80]
+    }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Static frontend — no HTTP calls", "wraps": ["frontend"] },
+    { "kind": "region", "label": "HTTP surface — 3 health routes", "wraps": ["api"] },
+    { "kind": "region", "label": "CLI entry points — primary interface", "wraps": ["cli"] },
+    { "kind": "region", "label": "Synthetic data write path", "wraps": ["ingestion"] },
+    { "kind": "region", "label": "PostgreSQL 17 — 31 tables", "wraps": ["postgres"] },
+    {
+      "kind": "region",
+      "label": "Analytics engine — no HTTP surface",
+      "wraps": ["foundation", "forecasting", "inventory", "procurement", "risk", "simulation", "replay"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "api-health",
+      "from": "api",
+      "to": "postgres",
+      "label": "SELECT 1 (health/ready)",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [460, 126]
+    },
+    {
+      "id": "cli-write",
+      "from": "cli",
+      "to": "ingestion",
+      "label": "generate + load",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [230, 294]
+    },
+    {
+      "id": "ingest-load",
+      "from": "ingestion",
+      "to": "postgres",
+      "label": "load_dataset() · 20 tables",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "postgres-foundation",
+      "from": "postgres",
+      "to": "foundation",
+      "label": "AsyncSession ORM select",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [527, 211]
+    },
+    {
+      "id": "cli-read",
+      "from": "cli",
+      "to": "foundation",
+      "label": "invokes 11 subcommands",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "labelAt": [356, 294]
+    },
+    {
+      "id": "foundation-forecast",
+      "from": "foundation",
+      "to": "forecasting",
+      "label": "profile_series → routing",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [670, 434]
+    },
+    {
+      "id": "forecast-persist",
+      "from": "forecasting",
+      "to": "postgres",
+      "label": "persist Forecast/ForecastRun",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "postgres-forecast-input",
+      "from": "postgres",
+      "to": "inventory",
+      "label": "load_persisted_forecasts()",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "inventory-procurement",
+      "from": "inventory",
+      "to": "procurement",
+      "label": "InventoryIntelligenceResult",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [1140, 193]
+    },
+    {
+      "id": "inventory-risk",
+      "from": "inventory",
+      "to": "risk",
+      "label": "InventoryResult",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "procurement-risk",
+      "from": "procurement",
+      "to": "risk",
+      "label": "LeadTime / concentration types",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "inventory-simulation",
+      "from": "inventory",
+      "to": "simulation",
+      "label": "projection + ForecastInput",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDx": -110,
+      "labelDy": 24
+    },
+    {
+      "id": "inventory-replay",
+      "from": "inventory",
+      "to": "replay",
+      "label": "ForecastInput",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "simulation-replay",
+      "from": "simulation",
+      "to": "replay",
+      "label": "public simulation API",
+      "fromSide": "right",
+      "toSide": "left",
+      "labelAt": [1140, 594]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Entry points",
+      "items": [
+        "scripts/analyze_supply_chain.py exposes 11 subcommands; generate_synthetic_data.py writes 20 tables (line 182)",
+        "FastAPI mounts one router: GET /api/v1/health, /health/live, /health/ready (backend/app/main.py:27)",
+        "frontend/index.html is static — no HTTP calls or fetch/XHR anywhere"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Analytics engine",
+      "items": [
+        "All 10 analytics packages execute inside the CLI, not behind HTTP",
+        "Acyclic: datasets → features → forecasting → reports → inventory → {procurement, simulation} → replay",
+        "analytics/replay imports only inventory.types and the public simulation API (replay/replay.py:36,50)"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Boundaries and gaps",
+      "items": [
+        "docs/api-contract.md documents 44 endpoints; 41 do not exist in code",
+        "backend/app/schemas, repositories and integration are imported by nothing",
+        "lifespan runs Base.metadata.create_all instead of alembic upgrade (core/lifespan.py:9)"
+      ]
+    }
+  ]
+}

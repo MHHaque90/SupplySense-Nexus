@@ -2,14 +2,14 @@
 
 ## Overview
 
-The AI Decision Copilot provides natural-language interaction with the SupplySense Nexus platform. It uses a cloud LLM API (replaceable provider) with a controlled tool-calling architecture to deliver evidence-backed, auditable responses.
+The AI Decision Copilot provides natural-language interaction with the SupplySense Nexus platform. It uses a pluggable LLM provider abstraction with a controlled tool-calling architecture to deliver evidence-backed, auditable responses. By default it runs the deterministic **MockProvider** (no API key, no network: `ENABLE_AI_ASSISTANT=false`). Enabling `ENABLE_AI_ASSISTANT=true` selects the provider named by `AI_PROVIDER` — `"mock"` or `"openai"` (an OpenAI-compatible endpoint via an httpx-only HTTP client, requires `OPENAI_API_KEY`); a misconfigured provider surfaces as 503 `AI_UNAVAILABLE`, never a silent fallback. Prompts are an additional layer only — every guardrail is also enforced in code (registry, executor, guardrails, approval service).
 
 ## Assistant Responsibilities
 
 1. **Analytical Querying**: Answer supply-chain questions using read-only tools.
 2. **Scenario Guidance**: Help users define and evaluate scenarios.
 3. **Decision Comparison**: Explain trade-offs between decision options.
-4. **Assumption Clarification**: Identify and explain assumptions behind recommendations.
+4. **Assumption Clarification**: Identify and explain the assumptions behind decision options.
 5. **Evidence Presentation**: Cite data sources, models, and metrics.
 6. **Uncertainty Communication**: Clearly express confidence and limitations.
 7. **Audit and Compliance**: Log all interactions for governance.
@@ -23,95 +23,107 @@ The AI Decision Copilot provides natural-language interaction with the SupplySen
 | `supplier_score` | Ask about supplier performance | "How reliable is Supplier B?" |
 | `scenario_creation` | Create or modify a scenario | "Create a scenario where Supplier C delays by 2 weeks" |
 | `decision_comparison` | Compare decision options | "Compare waiting vs. expediting for Scenario 1" |
-| `assumption_explanation` | Ask about assumptions | "What assumptions are behind this recommendation?" |
+| `assumption_explanation` | Ask about assumptions | "What assumptions are behind these numbers?" |
 | `data_quality` | Ask about data quality | "What data quality issues exist?" |
 | `general_inquiry` | General platform questions | "How does the Decision Replay Lab work?" |
 
 ## Tool Registry Design
 
 ### Tool Interface
+
 ```python
-class Tool(BaseModel):
+class ToolSpec:
     name: str
     description: str
-    input_schema: dict  # Pydantic model schema
-    output_schema: dict
-    read_only: bool
-    requires_approval: bool
-    category: str
+    category: str          # read_only_analytics | simulation | decision_replay |
+                           # optimization | approval_required | mutation
+    parameters: dict       # JSON Schema for the input
+    handler: Callable      # the only code path that can run
+    required_roles: tuple[str, ...] = ()
+    executable: bool = True
+    requires_approval: bool = False
 ```
 
 ### Tool Registry
-- All tools are registered in a central registry.
-- The AI assistant can only call registered tools.
+
+- All tools are registered in a central registry; the assistant can only call registered tools.
 - Tool outputs are validated before being passed to the LLM.
+- Declarations (`executable=False`) can only be created through `POST /ai/chat`; creating one twice for the same key returns 409.
+- The `mutation` category exists but **must stay empty**: `registry.list(category=MUTATION) == []` is asserted by tests — no executable mutating tool may ever be registered.
 
-### Read-Only Analytical Tools
+### Read-Only Analytical Tools (7)
 
-| Tool | Description | Input | Output |
-|------|-------------|-------|--------|
-| `get_forecast` | Retrieve product forecast | product_id, horizon | Forecast with intervals |
-| `get_inventory_position` | Get current inventory | warehouse_id, product_id | Inventory levels |
-| `get_stockout_risk` | Estimate stockout risk | product_id, warehouse_id | Risk probability |
-| `get_supplier_scorecard` | Get supplier metrics | supplier_id | Scorecard data |
-| `get_scenario_results` | Retrieve scenario outcomes | scenario_id | Results and comparison |
-| `list_scenarios` | List existing scenarios | filters | Scenario list |
-| `get_data_quality_report` | Get data quality metrics | table_name | Quality metrics |
-| `get_demand_observations` | Retrieve historical demand | product_id, date_range | Demand data |
+| Tool | Description | Data label |
+|------|-------------|------------|
+| `get_forecast` | Retrieve product forecast with intervals | `forecast` |
+| `get_inventory_position` | Current inventory levels by warehouse/product | `synthetic` |
+| `get_inventory_health` | Health metrics for inventory positions | `synthetic` |
+| `get_supplier_scorecard` | Supplier performance scorecard | `synthetic` |
+| `get_inventory_kpis` | Inventory KPI aggregates | `synthetic` |
+| `get_data_quality_report` | Data-quality metrics per table | `derived` |
+| `get_risk_report` | Disruption risk report | `synthetic` |
 
-### Scenario Tools
+### Compute Tools (3, outputs labeled `simulated`)
 
-| Tool | Description | Input | Approval Required |
-|------|-------------|-------|-------------------|
-| `create_scenario` | Define a new scenario | scenario parameters | No (read-only) |
-| `simulate_scenario` | Run Monte Carlo simulation | scenario_id, iterations | No |
-| `evaluate_decision` | Evaluate a decision option | scenario_id, option_type | No |
+| Tool | Category | Description |
+|------|----------|-------------|
+| `run_disruption_simulation` | simulation | Monte Carlo disruption impact (Phase 8) |
+| `run_decision_comparison` | decision_replay | Factual decision comparison, constraint-checked (Phase 9) |
+| `run_optimization_analysis` | optimization | Thin adapter over the Phase 10 MILP engine (objectives: cost, service_level, inventory_investment, disruption_risk — no silent weights, no re-ranking) |
 
-### Decision Comparison Tools
+### Approval-Required Declarations (3, `executable=False`)
 
-| Tool | Description | Input | Approval Required |
-|------|-------------|-------|-------------------|
-| `compare_decisions` | Compare multiple options | scenario_id, option_ids | No |
-| `rank_options` | Rank decision options | scenario_id, weights | No |
-| `get_recommendation` | Get ranked recommendation | scenario_id | No |
+| Declaration | Rationale |
+|-------------|-----------|
+| `procurement_order_change` | Consequential procurement action |
+| `inventory_adjustment` | Changes actual business data |
+| `scenario_deployment` | Promotes a scenario to production |
 
-### Approval-Required Tools (Mutating)
+Declarations only create a pending `AiApproval` record surfaced through `POST /ai/approval`. **Approvals never execute**: `ApprovalView.executed` is always `false`.
 
-| Tool | Description | Input | Rationale |
-|------|-------------|-------|-----------|
-| `approve_procurement` | Approve a procurement action | order_id, details | Consequential action |
-| `apply_scenario` | Apply scenario to production data | scenario_id | Changes actual data |
-| `update_inventory` | Adjust inventory records | adjustments | Changes actual data |
+### Tools That Do Not Exist (decision C2)
+
+The following names from earlier drafts are intentionally **not** part of the platform: `rank_options`, `get_recommendation`, `compare_decisions`, `get_stockout_risk`, `get_scenario_results`, `list_scenarios`, `get_demand_observations`, `create_scenario`, `simulate_scenario`, `evaluate_decision`, `approve_procurement`, `apply_scenario`, `update_inventory`. The copilot never ranks options or issues recommendations.
 
 ## Guardrails
 
 1. **No Arbitrary SQL**: The AI assistant never generates or executes SQL.
 2. **No Arbitrary Python**: The AI assistant never generates or executes Python code.
-3. **No Procurement Modification**: The AI assistant cannot modify procurement records without explicit human approval.
-4. **No Purchase Approval**: The AI assistant cannot approve purchases.
-5. **No Uncertainty Hiding**: All responses include confidence levels and limitations.
-6. **No Synthetic Data Mislabeling**: Simulated results are always labeled as simulated.
-7. **No Fabrication**: The AI assistant never invents analytical results.
-8. **Tool Constraint**: Only registered tools can be called.
-9. **Rate Limits**: Per-user rate limits prevent abuse.
-10. **Content Filtering**: Responses are filtered for inappropriate content.
+3. **No Procurement Modification**: The AI assistant cannot modify procurement records; it can only declare an action awaiting human approval.
+4. **No Purchase Approval**: The AI assistant cannot approve purchases, and an approval decision never executes the action.
+5. **No Ranking or Recommendations**: The assistant never issues rankings, "best/preferred/top choice" options, or "you should" guidance; it presents factual differences, trade-off quantities, assumptions, and uncertainties for the human to decide (decision C2; enforced by an output guardrail with a banned-word check).
+6. **No Uncertainty Hiding**: All responses include confidence levels and limitations.
+7. **No Synthetic Data Mislabeling**: Simulated results are always labeled as simulated; labels come from the `DataSourceLabel` enum, never free text.
+8. **No Fabrication**: Every claim must be backed by tool evidence; the assistant never invents analytical results.
+9. **Tool Constraint**: Only registered tools can be called; the mutation category stays empty.
+10. **Rate Limits**: Per-role rate limits prevent abuse (429 + `Retry-After`; limiter fails open, auth fails closed).
+11. **Secret Redaction**: Provider API keys and secrets are never echoed into responses, logs, or audit parameters.
+12. **Prompt Injection Resistance**: Input that attempts to override these rules is refused and recorded in the reply's `limitations`.
 
 ## Prompt Construction
 
 ### System Prompt Template
-```
-You are SupplySense Nexus AI Assistant. You help supply-chain professionals 
-make informed decisions by retrieving and analyzing data from the platform.
 
-Key rules:
-- Always cite data sources and their labels (public, synthetic, simulated)
-- Express uncertainty when confidence is below 0.70
-- Never execute SQL or Python code
-- Never approve purchases or modify procurement records
-- Clearly label all simulated/estimated outputs
-- If you don't have sufficient evidence, say so explicitly
-- All consequential decisions require human approval
 ```
+You are SupplySense Nexus AI Assistant, the AI Decision Copilot for a
+supply-chain resilience platform.
+
+Hard rules (also enforced in code):
+- You never execute SQL, Python, or shell commands; only registered tools run.
+- You never modify business data, approve purchases, or mutate inventory,
+  procurement, suppliers, or shipments. Consequential actions are declared
+  and require an explicit human approval decision; approving never executes.
+- You never rank options or issue recommendations; you present factual
+  differences, trade-off quantities, assumptions, and uncertainties and let
+  the human decide.
+- Every claim must be backed by tool evidence; never invent numbers.
+- Always carry data labels (public, synthetic, user-provided, derived,
+  simulated) into your answer; simulated results are labeled simulated.
+- State confidence and limitations honestly; ask for clarification when
+  evidence is insufficient.
+```
+
+The same rules are re-enforced in code; the prompt never carries user data or secrets.
 
 ### Context Construction
 1. **User Query**: The natural-language question.
@@ -121,14 +133,20 @@ Key rules:
 5. **Current Scenario**: Active scenario context if applicable.
 
 ### Tool Call Format
-```
-The LLM is prompted to produce tool calls in a structured format:
 
-{"tool": "get_forecast", "parameters": {"product_id": "prod-123", "horizon": 30}}
+```
+The LLM is prompted to respond with a single JSON object:
+
+{"intent": "inventory_risk",
+ "tool_calls": [{"tool": "get_inventory_position", "parameters": {...}}],
+ "response": "<assistant text for the user>",
+ "confidence": 0.82}
 ```
 
-The tool executor validates the call, runs the tool, and returns results.
-Results are appended to the context for the LLM to synthesize a response.
+Round 1 collects intent + tool plan; round 2 synthesizes the final answer over
+`TOOL_RESULTS` (echoed values only). The tool executor validates the call
+against the registry, runs the tool, and returns results. Calls naming
+unregistered tools are refused and recorded in the reply's `limitations`.
 
 ## Evidence Handling
 
@@ -171,24 +189,27 @@ for the next 30 days.
 
 ## Permission Checks
 
-1. **Authentication**: Every request includes a valid API key.
-2. **Authorization**: User role determines accessible data and tools.
-3. **Organization**: Users can only access data within their organization.
-4. **Tool Permissions**: Some tools require specific roles (e.g., manager for procurement).
-5. **Approval Workflow**: Mutating actions require explicit human approval.
+1. **Authentication**: Every request (except health) includes a valid opaque `Bearer ssk_...` API key; the server stores only its SHA-256 hash and compares with `hmac.compare_digest`. Missing, malformed, unknown, or deactivated keys all fail closed with the same 401 (`UNAUTHORIZED` / "Authentication failed.").
+2. **Authorization**: User role determines accessible tools: chat and tool listing require analyst or above; approval decisions require manager, executive, or admin (admin bypasses role checks).
+3. **Organization**: Users can only access data within their organization (tool queries are always scoped by `AuthContext.organization_id`).
+4. **Identity Source**: Identity comes only from the authenticated principal — never from the request body or headers like `X-User-Id`.
+5. **Approval Workflow**: Declared consequential actions require an explicit human approval decision; the decision is recorded but never executed.
 
 ## Audit Logging
 
-Every AI interaction is logged:
-- User ID and role
-- Query text
-- Intent classification
-- Tools called and parameters
-- Tool outputs
-- Response generated
-- Confidence score
-- Timestamp
-- Session ID
+Every AI interaction is logged append-only to the existing `audit_events` table:
+
+- `ai.chat` — one row per chat request (intent, tools, confidence, provider, conversation).
+- `ai.tool.call` — one row per executed (or refused) tool call.
+- `ai.approval.decision` — one row per approve/reject decision.
+- `ai.ratelimit.exceeded` — one row per denied request.
+
+Each row carries user ID and role, timestamp, session ID, and bounded JSON
+parameters that never contain raw API keys or provider secrets. Unauthenticated
+failures (no `user_id` available) are recorded only in the application log —
+never fabricated into the audit trail. Conversation turns are additionally
+persisted to `ai_conversations` / `ai_messages` with the full history bounded
+to a configurable maximum (oldest turns are dropped first).
 
 Audit logs are append-only and immutable.
 
@@ -202,32 +223,41 @@ Audit logs are append-only and immutable.
 | Executive | 500 | 5000 |
 | Admin | Unlimited | Unlimited |
 
-Rate limits prevent abuse and ensure fair resource usage.
+Exceeding a limit returns 429 `RATE_LIMIT_EXCEEDED` ("Rate limit exceeded. Try
+again later.") with a `Retry-After` header and an `ai.ratelimit.exceeded` audit
+row. Counting is in-process (no Redis): the limiter **fails open** on internal
+error (availability), while authentication **fails closed** (security).
 
 ## Failure Handling
 
-1. **LLM Unavailable**: Return "Service temporarily unavailable. Please try again later."
-2. **Tool Failure**: Return error message with affected tool name.
-3. **Invalid Intent**: Ask for clarification with suggested intents.
-4. **Insufficient Evidence**: State clearly that evidence is insufficient.
+1. **LLM Unavailable**: After bounded retries with backoff, return 503 `AI_UNAVAILABLE` ("AI service temporarily unavailable.") — never fabricate an answer.
+2. **Tool Failure**: Return a reply whose `limitations` name the affected tool; tool errors are surfaced as "Tool execution failed." without internal details.
+3. **Invalid/Empty Intent**: Default to `general_inquiry` and ask for clarification with the supported intent list.
+4. **Insufficient Evidence**: State clearly that evidence is insufficient in `limitations`.
 5. **Partial Results**: Present available evidence and note gaps.
-6. **Timeout**: Return partial results with a note about incomplete analysis.
+6. **Rate Limited**: 429 with `Retry-After`.
+7. **Guardrail Violation (output)**: The reply is rewritten/flagged by the governance scrubber; the violation is recorded in `limitations`.
 
 ## Human Approval Requirements
 
-The following actions require explicit human approval:
+The following actions can only be **declared** by the copilot (they are never executed by it):
 - Procurement order changes
 - Inventory adjustments
-- Supplier contract modifications
 - Scenario deployment to production
-- Any action that modifies actual business data
 
-The AI assistant presents the proposed action with:
+The declaration stores a pending `AiApproval` record (action, rationale,
+evidence refs, status `pending`) surfaced through the response's `approval_ids`
+meta. The human decision is submitted via `POST /ai/approval` (manager+):
+`decision: "approve" | "reject"`. Whatever the decision, `executed` stays
+`false` — recording a decision is the entire effect; an "approve" does not run
+the action.
+
+The assistant presents the declared action with:
 - Description of the action
-- Expected impact (cost, service, risk)
+- Quantified impact observations (cost, service, risk)
 - Assumptions and data sources
 - Confidence level
-- **Approval button for human decision-maker**
+- Pending status awaiting the human decision-maker
 
 ## Example Interaction
 
@@ -235,22 +265,25 @@ The AI assistant presents the proposed action with:
 
 **Assistant**:
 1. Classify intent: `decision_comparison`
-2. Call tools: `get_inventory_position`, `get_supplier_scorecard`, `list_scenarios`
-3. Create scenario: "Supplier A 2-week delay"
-4. Call tools: `simulate_scenario`, `compare_decisions`
-5. Generate response:
+2. Round 1 tool plan: `get_inventory_position`, `get_supplier_scorecard`, `run_disruption_simulation`
+3. Round 2 synthesis over `TOOL_RESULTS`:
 
-"Based on analysis of the scenario 'Supplier A 2-week delay' (simulated):
+"Analysis of a 2-week Supplier A delay (all figures simulated):
 
-**Recommended action**: Reallocate inventory from Warehouse X (Confidence: 78%)
-- Estimated cost savings vs. waiting: $15,000
-- Expected service level impact: -2% (from 96% to 94%)
-- Stockout risk reduction: from 23% to 12%
+**Observable differences between the declared options:**
+- Expedite: +$65K estimated cost, service level 96% (simulated)
+- Wait: baseline cost $50K, stockout risk rises from 23% to 12% (simulated)
 
-**Alternatives**:
-- Expedite: Higher cost ($65K) but better service (96%)
-- Wait: Lowest cost ($50K) but highest risk (stockout 23%)
+**Assumptions**: delay duration fixed at 14 days; no alternate supplier.
+**Confidence**: 0.74 — driven by historical on-time rates (synthetic data, 12-month window).
+**Limitations**: does not model promotion demand.
 
-*Note: All results are simulated estimates based on synthetic data. This recommendation requires human approval before implementation.*"
+*All results are simulated estimates based on synthetic data. Options are presented
+with factual differences only; the decision is yours. One declared action is
+pending approval (approval_id in meta).*"
 
-**Audit log**: Full interaction logged with all tool calls, outputs, and response.
+**Audit log**: `ai.chat` + one `ai.tool.call` row per tool, full interaction logged.
+
+---
+
+*Implementation reference: `backend/app/ai/` (service, intents, prompts, guardrails, ratelimit, audit, approvals) and `backend/app/ai/tools/` (13 registered tools), served by `backend/app/api/ai_router.py`. Full operational contract in [docs/ai-decision-copilot.md](ai-decision-copilot.md).*

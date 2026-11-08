@@ -1,0 +1,312 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "SupplySense Nexus — Data Flow",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1080,
+      542
+    ],
+    "views": [
+      {
+        "id": "write-path",
+        "label": "Synthetic write path",
+        "focus": [
+          "generators",
+          "pipeline",
+          "quality",
+          "postgres"
+        ],
+        "note": "Deterministic generators, in-memory dataset, one batch load, persisted quality checks."
+      },
+      {
+        "id": "forecast-handoff",
+        "label": "Forecast handoff",
+        "focus": [
+          "postgres",
+          "foundation",
+          "forecasting",
+          "inventory"
+        ],
+        "note": "ORM reads feed features and forecasting; forecasts persist before inventory reloads them."
+      },
+      {
+        "id": "decision-stack",
+        "label": "Decision layers",
+        "focus": [
+          "inventory",
+          "procurement",
+          "risk",
+          "simulation",
+          "replay"
+        ],
+        "note": "Intelligence outputs chain into risk and simulation; only simulation reaches replay."
+      }
+    ]
+  },
+  "stages": [
+    {
+      "label": "Synthetic generation"
+    },
+    {
+      "label": "Ingestion & quality"
+    },
+    {
+      "label": "PostgreSQL & loaders"
+    },
+    {
+      "label": "Forecast & inventory"
+    },
+    {
+      "label": "Procurement, risk & decision"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "generators",
+      "type": "backend",
+      "label": "ERP generators",
+      "sublabel": "13 modules",
+      "stage": 0,
+      "row": 0,
+      "tag": "synthetic"
+    },
+    {
+      "id": "pipeline",
+      "type": "backend",
+      "label": "Pipeline",
+      "sublabel": "generate → load",
+      "stage": 1,
+      "row": 0,
+      "tag": "20 tables"
+    },
+    {
+      "id": "quality",
+      "type": "backend",
+      "label": "Quality checks",
+      "sublabel": "11 check groups",
+      "stage": 1,
+      "row": 1,
+      "tag": "audit rows",
+      "yOffset": -20
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL 17",
+      "sublabel": "31 tables · Alembic",
+      "stage": 2,
+      "row": 1,
+      "tag": "supplysense",
+      "yOffset": -20
+    },
+    {
+      "id": "foundation",
+      "type": "backend",
+      "label": "Analytics core",
+      "sublabel": "datasets · features",
+      "stage": 2,
+      "row": 0,
+      "tag": "Phase 3"
+    },
+    {
+      "id": "forecasting",
+      "type": "backend",
+      "label": "Forecasting",
+      "sublabel": "models + intervals",
+      "stage": 3,
+      "row": 0,
+      "tag": "Phase 4"
+    },
+    {
+      "id": "inventory",
+      "type": "backend",
+      "label": "Inventory",
+      "sublabel": "projection · stockout",
+      "stage": 3,
+      "row": 1,
+      "tag": "Phase 5",
+      "yOffset": -20
+    },
+    {
+      "id": "procurement",
+      "type": "backend",
+      "label": "Procurement",
+      "sublabel": "concentration · inbound",
+      "stage": 4,
+      "row": 0,
+      "tag": "Phase 6"
+    },
+    {
+      "id": "risk",
+      "type": "backend",
+      "label": "Risk register",
+      "sublabel": "10 domains · evidence",
+      "stage": 4,
+      "row": 1,
+      "tag": "Phase 7",
+      "yOffset": -20
+    },
+    {
+      "id": "simulation",
+      "type": "backend",
+      "label": "Simulation",
+      "sublabel": "shared baseline · MC",
+      "stage": 4,
+      "row": 2,
+      "tag": "Phase 8",
+      "yOffset": -40
+    },
+    {
+      "id": "replay",
+      "type": "backend",
+      "label": "Decision Replay",
+      "sublabel": "run_replay() deltas",
+      "stage": 4,
+      "row": 3,
+      "tag": "Phase 9",
+      "yOffset": -60
+    }
+  ],
+  "flows": [
+    {
+      "id": "generate",
+      "from": "generators",
+      "to": "pipeline",
+      "label": "generate_dataset()",
+      "classification": "in-memory"
+    },
+    {
+      "id": "check",
+      "from": "pipeline",
+      "to": "quality",
+      "label": "run_all_checks()",
+      "classification": "validation",
+      "labelAt": [
+        315,
+        202
+      ]
+    },
+    {
+      "id": "load",
+      "from": "pipeline",
+      "to": "postgres",
+      "label": "load_dataset()",
+      "classification": "batch write",
+      "variant": "emphasis"
+    },
+    {
+      "id": "persist-checks",
+      "from": "quality",
+      "to": "postgres",
+      "label": "persist_results()",
+      "classification": "audit rows",
+      "route": "straight",
+      "labelAt": [
+        421,
+        271
+      ]
+    },
+    {
+      "id": "read",
+      "from": "postgres",
+      "to": "foundation",
+      "label": "ORM select",
+      "classification": "read-only",
+      "variant": "emphasis",
+      "labelAt": [
+        530,
+        205
+      ]
+    },
+    {
+      "id": "profile",
+      "from": "foundation",
+      "to": "forecasting",
+      "label": "profile → routing",
+      "classification": "pandas frames"
+    },
+    {
+      "id": "forecast-input",
+      "from": "forecasting",
+      "to": "inventory",
+      "label": "ForecastInput",
+      "classification": "persisted forecast",
+      "labelAt": [
+        745,
+        202
+      ]
+    },
+    {
+      "id": "inventory-results",
+      "from": "inventory",
+      "to": "procurement",
+      "label": "InventoryResult",
+      "classification": "dataclass handoff"
+    },
+    {
+      "id": "inventory-risk",
+      "from": "inventory",
+      "to": "risk",
+      "label": "InventoryResult",
+      "classification": "dataclass handoff",
+      "labelAt": [
+        800,
+        295
+      ]
+    },
+    {
+      "id": "inventory-simulation",
+      "from": "inventory",
+      "to": "simulation",
+      "label": "projection inputs",
+      "classification": "frozen inputs",
+      "labelAt": [
+        852,
+        330
+      ]
+    },
+    {
+      "id": "simulation-replay",
+      "from": "simulation",
+      "to": "replay",
+      "label": "simulation API",
+      "classification": "public API",
+      "variant": "emphasis",
+      "labelAt": [
+        960,
+        395
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Write path",
+      "items": [
+        "generate_dataset() is pure and in-memory; load_dataset() inserts 20 tables (data/ingestion/pipeline.py:115,217)",
+        "11 quality check groups persist to data_quality_checks (data/quality/checks.py:403)",
+        "Every generated row carries data_source_label = synthetic"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Read and forecast handoff",
+      "items": [
+        "Dataset loaders run AsyncSession ORM selects; no raw SQL in application code",
+        "forecasts / forecast_runs / model_versions are written by forecasting/persistence.py:119",
+        "inventory/forecast_inputs.py:27 reloads them as ForecastInput for downstream stages"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Decision layers",
+      "items": [
+        "procurement consumes inventory results; risk consumes both (procurement/reports.py:14, risk/reports.py:15)",
+        "simulation builds one shared baseline per scenario (simulation/baseline.py:13)",
+        "replay imports only inventory and simulation (replay/replay.py:36,50)"
+      ]
+    }
+  ]
+}

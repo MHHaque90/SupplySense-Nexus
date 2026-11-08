@@ -128,7 +128,7 @@ The central differentiator is **disruption-aware procurement decision intelligen
 ### Decision Replay Lab
 - FR-25: Define baseline and alternative scenarios.
 - FR-26: Compare decisions across cost, service, risk, and inventory dimensions.
-- FR-27: Rank recommendations with confidence scores.
+- FR-27: Present decision options with factual deltas and confidence scores (no rankings, no recommendations — options and trade-off quantities are surfaced for the human decision-maker).
 - FR-28: Track assumptions and reproducibility metadata.
 
 ### Optimization Engine
@@ -170,11 +170,11 @@ The central differentiator is **disruption-aware procurement decision intelligen
 - Basic scenario definition
 
 **Not in MVP**:
-- ML forecasting models (Phase 3)
-- Optimization engine (Phase 8)
-- AI Decision Copilot (Phase 9)
-- Full frontend dashboard (Phase 10)
-- Decision Replay Lab (Phase 7)
+- ML forecasting models (Phase 4)
+- Optimization engine (Phase 10)
+- AI Decision Copilot (Phase 11)
+- Full frontend dashboard (Phase 12)
+- Decision Replay Lab (Phase 9)
 
 ## Full-Platform Boundary
 

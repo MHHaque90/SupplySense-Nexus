@@ -51,15 +51,31 @@ docker-compose.override.yml
 # Logs
 *.log
 
-# Data files (may contain sensitive or large data)
-data/
+# Data files (may contain sensitive or large data).
+# Root-anchored so source packages like backend/app/data/ stay committable.
+/data/
 raw/
 processed/
 
-# Model artifacts
-models/
+# Model artifacts (root-anchored so backend/app/models/ stays committable)
+/models/
 checkpoints/
 
 # OS files
 *.pid
 *.lock
+
+# Node / Frontend dependencies and build caches
+node_modules/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test verification screenshots and browser capture artifacts (root & test runs)
+# Note: Preserves architecture and documentation images in docs/
+/p15-*.png
+*.screenshot.png
+*-screenshot.png
+
+.playwright-mcp/

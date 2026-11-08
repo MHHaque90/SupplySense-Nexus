@@ -28,13 +28,14 @@ All simulated and synthetic outputs are explicitly labeled in the database and i
 | email | VARCHAR(255) | Unique email address |
 | username | VARCHAR(100) | Display username |
 | password_hash | VARCHAR(255) | Hashed password |
+| api_key_hash | VARCHAR(64) (nullable) | SHA-256 hex digest of the opaque Bearer API key (`ssk_...`); the raw key is shown exactly once at provisioning and never stored |
 | role | VARCHAR(50) | analyst, planner, manager, executive, admin |
 | organization_id | UUID (FK) | Reference to organization |
 | created_at | TIMESTAMPTZ | Account creation timestamp |
 | updated_at | TIMESTAMPTZ | Last update timestamp |
 
-**Indexes**: `idx_users_email` (unique), `idx_users_organization_id`
-**Constraints**: email unique, role in predefined enum
+**Indexes**: `idx_users_email` (unique), `idx_users_organization_id`, `ix_users_api_key_hash` (unique)
+**Constraints**: email unique, role in predefined enum, api_key_hash unique when present (one active key per user)
 
 ### organizations
 
@@ -518,6 +519,68 @@ All simulated and synthetic outputs are explicitly labeled in the database and i
 
 **Indexes**: `idx_audit_user_timestamp`, `idx_audit_entity`, `idx_audit_timestamp`
 
+### ai_conversations
+
+**Purpose**: One row per assistant conversation (Phase 11), org- and user-scoped.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID string (PK) | Conversation identifier (returned to clients as `conversation_id`) |
+| organization_id | UUID string (FK) | Owning organization (isolation boundary) |
+| user_id | UUID string (FK) | Owner user |
+| session_id | VARCHAR(100) | Optional client-provided session grouping |
+| title | VARCHAR(255) | Optional conversation title |
+| last_intent | VARCHAR(50) | Most recent classified intent |
+| data_source_label | VARCHAR(20) | Application writes `user-provided` (server default `synthetic`) |
+| created_at | TIMESTAMPTZ | Creation timestamp |
+| updated_at | TIMESTAMPTZ | Last activity timestamp |
+
+**Indexes**: organization_id, user_id (both FK-indexed)
+
+### ai_messages
+
+**Purpose**: Conversation turns with full provenance for each turn.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID string (PK) | Message identifier |
+| conversation_id | UUID string (FK) | Parent conversation |
+| role | VARCHAR(20) | `user` or `assistant` |
+| sequence | INTEGER | Turn ordering within the conversation |
+| content | TEXT | Message text (assistant side passes through the secret scrubber) |
+| intent | VARCHAR(50) | Classified intent (assistant messages) |
+| confidence | FLOAT | Model confidence 0..1 (assistant messages) |
+| tool_calls | JSONB | Tool names/params invoked for the turn |
+| provider | VARCHAR(50) | LLM provider name (e.g. `mock`, `http_openai`) |
+| model | VARCHAR(100) | Model identifier |
+| data_source_label | VARCHAR(20) | `user-provided` for user turns, `derived` for assistant turns |
+| created_at / updated_at | TIMESTAMPTZ | Turn timestamps |
+
+**Indexes**: conversation_id (FK-indexed)
+**Retention**: history returned to the model is bounded; oldest turns are dropped first beyond the configured maximum.
+
+### ai_approvals
+
+**Purpose**: Declared consequential actions awaiting a human decision (Phase 11). Recording a decision never executes the action — there is deliberately **no `executed` column and no execution path**; the API's `executed` field is a constant `false`.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID string (PK) | Approval identifier (client-facing `approval_id`) |
+| conversation_id | UUID string (FK) | Conversation that declared the action |
+| organization_id | UUID string (FK) | Owning organization |
+| requested_by | UUID string (FK) | Declaring user |
+| action | VARCHAR(100) | Declared action type (procurement_order_change, inventory_adjustment, scenario_deployment) |
+| declaration | JSONB | Structured declaration: description, evidence refs, impact observations, assumptions |
+| status | VARCHAR(20) | `pending`, `approved`, or `rejected` (server default `pending`) |
+| decided_by | UUID string (FK, nullable) | Manager+ user who recorded the decision |
+| decided_at | TIMESTAMPTZ (nullable) | Decision timestamp |
+| decision_comment | TEXT (nullable) | Optional decision comment |
+| data_source_label | VARCHAR(20) | Application writes `derived` (server default `synthetic`) |
+| created_at / updated_at | TIMESTAMPTZ | Declaration/decision timestamps |
+
+**Indexes**: conversation_id, organization_id, requested_by, action, status (FK/column-indexed)
+**Constraints**: status constrained by `ApprovalStatus` (`pending`, `approved`, `rejected`)
+
 ## Data Retention Considerations
 
 - **Demand observations**: Retain indefinitely for model training and backtesting.
@@ -527,3 +590,12 @@ All simulated and synthetic outputs are explicitly labeled in the database and i
 - **Forecasts**: Retain model version and metrics; archive raw forecast outputs after 1 year.
 - **Scenario results**: Retain for project duration plus 1 year.
 - **Simulation outputs**: Archive after 6 months; keep metadata indefinitely.
+
+## Phase 2 Implementation Notes (actual schema truth)
+
+- The implemented schema contains 34 application tables plus `alembic_version` (35 relations total in `public`): 31 tables through Phase 10, plus `ai_conversations`, `ai_messages`, and `ai_approvals` added by migration `phase11_ai_copilot` (which also added `users.api_key_hash`).
+- String-stored numerics: quantities, costs, probabilities, and weights are stored as `VARCHAR` (e.g. `quantity VARCHAR(12)`, `unit_cost VARCHAR(10)`); the Phase 2 generator formats them deterministically (`"12"`, `"24.50"`, `"0.18"`).
+- Date-typed columns are declared as `Mapped[str]` with `Date` in some models but accept `date` objects through SQLAlchemy; the generator passes `date` objects.
+- No `data_source_label` column exists on `disruption_impacts`, `bom_components`, `scenario_events`, `shipment_events`, `audit_events`, or `data_quality_checks`; provenance there is inherited from parent records.
+- Phase 1 relationship fix (code-only, no migration): removed a duplicated `shipments` relationship definition on `Supplier` in `backend/app/models/supplier.py`.
+- Phase 2 populates operational and master tables only; `forecasts`, `forecast_runs`, `scenarios`, `scenario_events`, `scenario_results`, `decision_options`, `decision_comparisons`, `optimization_runs`, `model_versions`, and `audit_events` remain empty for later phases.

@@ -1,0 +1,265 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "SupplySense Nexus — Decision Flow",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1020,
+      542
+    ],
+    "views": [
+      {
+        "id": "to-replay",
+        "label": "What reaches replay",
+        "focus": [
+          "forecasting",
+          "inventory",
+          "forecast_input",
+          "scenario",
+          "replay"
+        ],
+        "note": "Only ForecastInput and the frozen simulation scenario feed Decision Replay."
+      },
+      {
+        "id": "terminates",
+        "label": "What stops at CLI reports",
+        "focus": [
+          "procurement",
+          "risk",
+          "cli_report"
+        ],
+        "note": "Procurement and risk outputs are reported, never replayed."
+      },
+      {
+        "id": "reporting",
+        "label": "Labeled outputs",
+        "focus": [
+          "replay",
+          "replay_report",
+          "cli_report"
+        ],
+        "note": "Every output is JSON/Markdown carrying data_source_label = simulated."
+      }
+    ]
+  },
+  "stages": [
+    {
+      "label": "Intelligence outputs"
+    },
+    {
+      "label": "Replay handoffs"
+    },
+    {
+      "label": "Decision analysis"
+    },
+    {
+      "label": "Report"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "forecasting",
+      "type": "backend",
+      "label": "Forecast outputs",
+      "sublabel": "ForecastOutput",
+      "stage": 0,
+      "row": 0,
+      "tag": "Phase 4"
+    },
+    {
+      "id": "inventory",
+      "type": "backend",
+      "label": "Inventory",
+      "sublabel": "projection · stockout",
+      "stage": 0,
+      "row": 1,
+      "tag": "Phase 5",
+      "yOffset": -20
+    },
+    {
+      "id": "procurement",
+      "type": "backend",
+      "label": "Procurement",
+      "sublabel": "concentration · inbound",
+      "stage": 0,
+      "row": 2,
+      "tag": "Phase 6",
+      "yOffset": -40
+    },
+    {
+      "id": "risk",
+      "type": "backend",
+      "label": "Risk register",
+      "sublabel": "10 domains · evidence",
+      "stage": 0,
+      "row": 3,
+      "tag": "Phase 7",
+      "yOffset": -60
+    },
+    {
+      "id": "forecast_input",
+      "type": "backend",
+      "label": "ForecastInput",
+      "sublabel": "persisted forecasts",
+      "stage": 1,
+      "row": 0,
+      "tag": "point · lower · upper"
+    },
+    {
+      "id": "scenario",
+      "type": "backend",
+      "label": "Frozen scenario",
+      "sublabel": "event · seed · horizon",
+      "stage": 1,
+      "row": 1,
+      "tag": "built once",
+      "yOffset": -20
+    },
+    {
+      "id": "cli_report",
+      "type": "backend",
+      "label": "CLI reports",
+      "sublabel": "JSON / Markdown",
+      "stage": 1,
+      "row": 3,
+      "tag": "no replay",
+      "yOffset": -60
+    },
+    {
+      "id": "replay",
+      "type": "backend",
+      "label": "Decision Replay",
+      "sublabel": "shared baseline",
+      "stage": 2,
+      "row": 0,
+      "tag": "Phase 9"
+    },
+    {
+      "id": "replay_report",
+      "type": "backend",
+      "label": "Replay report",
+      "sublabel": "21 sections · labeled",
+      "stage": 3,
+      "row": 0,
+      "tag": "simulated"
+    }
+  ],
+  "flows": [
+    {
+      "id": "persist-forecast",
+      "from": "forecasting",
+      "to": "forecast_input",
+      "label": "persist forecast",
+      "classification": "forecasts table",
+      "variant": "emphasis"
+    },
+    {
+      "id": "forecast-to-replay",
+      "from": "forecast_input",
+      "to": "replay",
+      "label": "ForecastInput",
+      "classification": "type handoff",
+      "route": "straight",
+      "labelAt": [
+        422,
+        137
+      ],
+      "variant": "emphasis"
+    },
+    {
+      "id": "inventory-to-scenario",
+      "from": "inventory",
+      "to": "scenario",
+      "label": "projection inputs",
+      "classification": "frozen inputs"
+    },
+    {
+      "id": "scenario-to-replay",
+      "from": "scenario",
+      "to": "replay",
+      "label": "simulation API",
+      "classification": "public API",
+      "variant": "emphasis"
+    },
+    {
+      "id": "inventory-to-procurement",
+      "from": "inventory",
+      "to": "procurement",
+      "label": "InventoryResult",
+      "classification": "dataclass handoff",
+      "labelAt": [
+        100,
+        290
+      ]
+    },
+    {
+      "id": "procurement-to-risk",
+      "from": "procurement",
+      "to": "risk",
+      "label": "LeadTime types",
+      "classification": "dataclass handoff",
+      "labelAt": [
+        100,
+        392
+      ]
+    },
+    {
+      "id": "risk-to-cli",
+      "from": "risk",
+      "to": "cli_report",
+      "label": "risk report → CLI",
+      "classification": "JSON / Markdown",
+      "route": "straight",
+      "labelAt": [
+        207,
+        457
+      ],
+      "variant": "dashed"
+    },
+    {
+      "id": "procurement-to-cli",
+      "from": "procurement",
+      "to": "cli_report",
+      "label": "procure → CLI",
+      "classification": "JSON / Markdown",
+      "variant": "dashed"
+    },
+    {
+      "id": "replay-to-report",
+      "from": "replay",
+      "to": "replay_report",
+      "label": "render_markdown()",
+      "classification": "21 sections"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "What reaches replay",
+      "items": [
+        "replay imports ForecastInput and the public simulation API only (replay/replay.py:36,50)",
+        "simulation contributes baseline, comparison, monte_carlo, runner and traceability modules",
+        "one shared baseline plus common random numbers feed every decision arm"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "What stops at CLI reports",
+      "items": [
+        "no analytics.risk or analytics.procurement import exists anywhere under analytics/replay/",
+        "procurement and risk feed reports only — no decision-analysis consumer exists yet",
+        "Phase 9 never ranks, recommends or optimizes (replay/__init__.py:1-13)"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Handoff contracts",
+      "items": [
+        "ForecastInput carries point / lower / upper plus model metadata (inventory/types.py:100)",
+        "SimulationScenario freezes event, horizon, seed and simulation_count (simulation/types.py:142)",
+        "every emitted report carries data_source_label = simulated"
+      ]
+    }
+  ]
+}

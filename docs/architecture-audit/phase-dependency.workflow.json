@@ -1,0 +1,316 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "SupplySense Nexus — Phase Map",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "core-chain",
+        "label": "Implemented chain",
+        "focus": [
+          "p0",
+          "p1",
+          "p2",
+          "p3",
+          "p4",
+          "p5"
+        ],
+        "note": "Phases 0-5 form the foundation-to-inventory backbone."
+      },
+      {
+        "id": "branches",
+        "label": "Intelligence branches",
+        "focus": [
+          "p5",
+          "p6",
+          "p7",
+          "p8",
+          "p9"
+        ],
+        "note": "Procurement/risk and simulation/replay branch off Phase 5."
+      },
+      {
+        "id": "not-implemented",
+        "label": "Documented, not implemented",
+        "focus": [
+          "p9",
+          "future"
+        ],
+        "note": "Phases 10-13 exist only in docs/roadmap.md — no packages under backend/app/."
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "foundation",
+      "label": "Foundation & schema"
+    },
+    {
+      "id": "analytics",
+      "label": "Data & analytics"
+    },
+    {
+      "id": "intelligence",
+      "label": "Intelligence"
+    },
+    {
+      "id": "decision",
+      "label": "Decision intelligence"
+    },
+    {
+      "id": "planned",
+      "label": "Planned — no code",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "build-base",
+      "label": "Foundation & data",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "analytics",
+      "label": "Analytics & inventory",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "decisions",
+      "label": "Intelligence & decisions",
+      "fromCol": 4,
+      "toCol": 5
+    }
+  ],
+  "groups": [
+    {
+      "id": "core",
+      "label": "Phase 3-4 analytics core",
+      "lane": "analytics",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "intel",
+      "label": "Phase 5-7 intelligence",
+      "lane": "intelligence",
+      "fromCol": 3,
+      "toCol": 5
+    },
+    {
+      "id": "dec",
+      "label": "Phase 8-9 decision lab",
+      "lane": "decision",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "mainPath": [
+    "p0",
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7"
+  ],
+  "nodes": [
+    {
+      "id": "p0",
+      "lane": "foundation",
+      "col": 0,
+      "type": "backend",
+      "label": "Phase 0 · docs · config",
+      "width": 208
+    },
+    {
+      "id": "p1",
+      "lane": "analytics",
+      "col": 0,
+      "type": "database",
+      "label": "Phase 1 · 31 tables · Alembic",
+      "width": 208
+    },
+    {
+      "id": "p2",
+      "lane": "analytics",
+      "col": 1,
+      "type": "backend",
+      "label": "Phase 2 · generators · quality",
+      "width": 208
+    },
+    {
+      "id": "p3",
+      "lane": "analytics",
+      "col": 2,
+      "type": "backend",
+      "label": "Phase 3 · datasets · features",
+      "width": 208
+    },
+    {
+      "id": "p4",
+      "lane": "analytics",
+      "col": 3,
+      "type": "backend",
+      "label": "Phase 4 · forecast persistence",
+      "tag": "models + intervals",
+      "width": 208
+    },
+    {
+      "id": "p5",
+      "lane": "intelligence",
+      "col": 3,
+      "type": "backend",
+      "label": "Phase 5 · inventory · stockout",
+      "width": 208
+    },
+    {
+      "id": "p6",
+      "lane": "intelligence",
+      "col": 4,
+      "type": "backend",
+      "label": "Phase 6 · procurement",
+      "width": 208
+    },
+    {
+      "id": "p7",
+      "lane": "intelligence",
+      "col": 5,
+      "type": "backend",
+      "label": "Phase 7 · risk intelligence",
+      "width": 208
+    },
+    {
+      "id": "p8",
+      "lane": "decision",
+      "col": 4,
+      "type": "backend",
+      "label": "Phase 8 · disruption scenario",
+      "width": 208
+    },
+    {
+      "id": "p9",
+      "lane": "decision",
+      "col": 5,
+      "type": "backend",
+      "label": "Phase 9 · Decision Replay Lab",
+      "tag": "no ranking",
+      "width": 208
+    },
+    {
+      "id": "future",
+      "lane": "planned",
+      "col": 5,
+      "type": "backend",
+      "label": "Phases 10-13 · planned",
+      "tag": "documented only",
+      "width": 208
+    }
+  ],
+  "edges": [
+    {
+      "id": "p0-p1",
+      "from": "p0",
+      "to": "p1",
+      "label": "schema"
+    },
+    {
+      "id": "p1-p2",
+      "from": "p1",
+      "to": "p2",
+      "label": "loads models"
+    },
+    {
+      "id": "p2-p3",
+      "from": "p2",
+      "to": "p3",
+      "label": "frames",
+      "variant": "emphasis"
+    },
+    {
+      "id": "p3-p4",
+      "from": "p3",
+      "to": "p4",
+      "label": "features → routing",
+      "channelY": 313,
+      "variant": "emphasis"
+    },
+    {
+      "id": "p4-p5",
+      "from": "p4",
+      "to": "p5",
+      "label": "persisted forecasts",
+      "variant": "emphasis"
+    },
+    {
+      "id": "p5-p6",
+      "from": "p5",
+      "to": "p6",
+      "label": "InventoryIntelligenceResult"
+    },
+    {
+      "id": "p5-p8",
+      "from": "p5",
+      "to": "p8",
+      "label": "projection + ForecastInput",
+      "variant": "dashed"
+    },
+    {
+      "id": "p6-p7",
+      "from": "p6",
+      "to": "p7",
+      "label": "lead time / concentration",
+      "channelY": 336
+    },
+    {
+      "id": "p8-p9",
+      "from": "p8",
+      "to": "p9",
+      "label": "public simulation API",
+      "variant": "emphasis"
+    },
+    {
+      "id": "p9-future",
+      "from": "p9",
+      "to": "future",
+      "label": "roadmap only",
+      "variant": "dashed",
+      "role": "branch"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Implemented chain",
+      "items": [
+        "Phases 0-9 exist as code: 92 test files under backend/app/tests/ and 11 CLI subcommands",
+        "Edges follow real Python imports: inventory → procurement → risk, inventory → simulation → replay",
+        "Phase 9 replay imports only inventory.types and simulation (replay/replay.py:36,50)"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Documented, not implemented",
+      "items": [
+        "Phases 10-13 (optimization, AI copilot, dashboard, governance) have no package under backend/app/",
+        "backend/app/integration/ contains only __init__.py; AI and optimization flags do nothing",
+        "docs/roadmap.md summary timeline renumbers phases against its own section headings"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Edges worth reading",
+      "items": [
+        "risk also imports analytics/inventory directly (risk/inventory_risk.py:9)",
+        "replay also imports inventory.types.ForecastInput (replay/replay.py:36)",
+        "inventory loads reports.forecasting_report lazily (inventory/forecast_inputs.py:135)"
+      ]
+    }
+  ]
+}

@@ -259,18 +259,19 @@ frontend/
 ## AI Assistant Lifecycle
 
 1. **Intent Classification**: Classify user query into predefined intent categories.
-2. **Tool Selection**: Map intent to appropriate read-only tools.
+2. **Tool Selection**: Map intent to registered tools (read-only analytics plus labeled compute tools; the mutation category is empty).
 3. **Evidence Retrieval**: Execute tools to fetch data, forecasts, risk scores, and supplier metrics.
 4. **Response Construction**: Build response with citations, confidence levels, and limitations.
 5. **Audit Logging**: Record the query, tools called, and response.
-6. **Human Approval**: For consequential actions, present to user for approval before execution.
+6. **Human Approval**: For consequential actions, the copilot declares the action; a manager+ user records an approve/reject decision that is never executed by the assistant.
 
 ## Authentication Boundary
 
 - All API endpoints require authentication except health endpoints.
-- JWT-based authentication with refresh tokens.
+- Opaque Bearer API keys (`ssk_...`): only the SHA-256 hash is stored, compared with `hmac.compare_digest`; missing/unknown/deactivated keys all return the same 401. No JWT, no login endpoint, identity never taken from the request body.
 - Role-based access control: analyst, planner, manager, executive, admin.
-- AI assistant operations are restricted by role permissions.
+- AI assistant operations are restricted by role permissions (chat/tools: analyst+; approval decisions: manager+; admin bypasses).
+- Rate limiting: per-role in-process tiers return 429 + `Retry-After`; the limiter fails open on internal fault while authentication fails closed.
 
 ## Authorization Boundary
 

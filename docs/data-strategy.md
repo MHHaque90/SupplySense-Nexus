@@ -241,3 +241,44 @@ demand_observations (synthetic)
 | World Bank Trade Data | Trade statistics | Open license | Supplier context |
 
 **Note**: Public data usage will be evaluated during Phase 2-3 when data needs are clearer.
+
+## Phase 2 Implementation: Synthetic ERP Data Foundation
+
+**This dataset is synthetic and is generated solely for demonstration, testing, analytics development, and portfolio purposes.**
+
+### Generation Process
+- Package: `backend/app/data/` with `config.py` (typed `GenerationConfig`), `generators/` (pure deterministic functions returning plain record dicts), `ingestion/` (batched async inserts in one transaction), `quality/` (structured checks plus reporting).
+- Entry point: `python scripts/generate_synthetic_data.py generate --seed 42 [--reset] [--organization-count N --product-count N --supplier-count N --warehouse-count N --history-days N]`.
+- Pipeline: generate → structural validation → batch insert → verify → quality checks → persist results → report. Any ingestion failure rolls back the whole dataset.
+
+### Seed and Scale
+- Default seed: 42; generator version 2.0.0. Same seed plus same configuration reproduces identical business fields (UUIDs and timestamps are assigned at ingestion and excluded from comparison).
+- Default scale (laptop-friendly): 1 organization, 24 products, 8 suppliers, 3 warehouses, 365 days (2025-07-01 to 2026-06-30). Actual default counts: 26,280 demand observations, 22,022 sales lines, 21,095 inventory transactions, 689 purchase orders, 776 shipments, 5 disruptions.
+- Scale-up is supported through the same CLI flags; batch size is configurable (`batch_size`, default 500).
+
+### Data Provenance
+- All operational records: `data_source_label = "synthetic"`. Disruptions: `"simulated"`.
+- Schema truth: `disruption_impacts`, `bom_components`, `scenario_events`, `shipment_events`, `audit_events`, and `data_quality_checks` carry no `data_source_label` column in the Phase 1 schema; provenance for those rows is inherited from their parent records.
+- Synthetic users use `@supplysense.local` addresses; `password_hash` holds a deterministic test-only marker, never a real credential.
+
+### Key Generation Rules
+- Demand: baseline + trend + yearly/weekly seasonality + noise + promo spikes, clamped non-negative; one row per product-warehouse-day; intermittent products include zero days.
+- Sales: derived from demand (one order per warehouse-day), never independent.
+- Procurement: baseline reorder-point policy (`reorder_point = avg_daily × lead_time × 1.2`); PO quantity ≥ MOQ and ≤ supplier capacity. This is a data-generation rule only, not an optimized policy.
+- Inventory: chronological replay with receipts and capped fulfillment; stock never negative (shortfalls become lost sales and `partially_fulfilled` orders); opening balance booked as `OPENING_BALANCE` so `opening + receipts − sales + adjustments = closing`.
+- BOM: finished goods consume lower-index components only (cycles impossible by construction) plus DFS validation; first component product is single-sourced, others multi-sourced; components are shared across products.
+- Supplier reliability differs only via lead-time/delay parameters; no pre-assigned performance scores.
+
+### Reset and Idempotency
+- Without `--reset`, the pipeline refuses to duplicate an existing dataset (`DatasetExistsError`).
+- With `--reset`, only the SupplySense synthetic tables are deleted in FK-safe order; unrelated databases, schemas, and `alembic_version` are untouched.
+
+### Validation and Reporting
+- 63 checks across completeness, validity, uniqueness, referential integrity, temporal consistency, range validity, business rules, and reconciliation; results persisted to `data_quality_checks` with PASS/WARN/FAIL status and severity.
+- `report` prints real database counts; `sample` exports small CSVs to `data/sample/` plus the dictionary in `data/dictionaries/` (JSON and Markdown).
+
+### Known Limitations
+- Forecasts, scenarios, decision options, optimizations, model versions, and audit events are intentionally empty (later phases).
+- Lost sales from stockouts are not backlogged; unfulfilled demand simply reduces sales.
+- Each purchase order carries a single line item; split shipments share one schedule.
+- Full-dataset validation takes several minutes on a developer laptop (measured honestly per run).

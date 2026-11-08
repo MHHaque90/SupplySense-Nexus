@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual Environments
+.venv/
+venv/
+env/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Version control and CI
+.git/
+.github/
+.gitignore
+
+# Testing and linting caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# Frontend (built in separate Docker context)
+frontend/
+
+# Local databases and runtime data
+*.db
+*.sqlite
+postgres/
+pgdata/
+data/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# IDE and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+.playwright-mcp/

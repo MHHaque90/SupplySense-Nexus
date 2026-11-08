@@ -1,5 +1,7 @@
 # Decision Engine Design: SupplySense Nexus
 
+> **Implementation status (final):** The Decision Replay Lab as implemented in `backend/app/analytics/replay/` performs **factual decision comparison only** — one frozen scenario, one shared baseline, common random numbers, copy-on-write decision effects, descriptive constraint checks, and an exactly 21-section report. Phase 9 **never ranks, never recommends, never scores, and never optimizes**. Phase 10 optimization implements four explicit scalar objectives with banned-word reporting (no rankings, no recommendations), and Phase 11's AI Decision Copilot is likewise forbidden from ranking or recommending (decision C2 — "no ranking/recommendation outputs" is a platform-wide rule). The recommendation-ranking, composite-score, and "top choice" design below is **historical design that was never implemented and is permanently out of scope**; it is retained only as a record of the original concept. See `docs/decision-replay-lab.md`, `docs/optimization-engine.md`, and `docs/ai-decision-copilot.md` for what is actually implemented.
+
 ## Overview
 
 The Decision Replay Lab is the central innovation of SupplySense Nexus. It allows users to compare multiple operational decisions under the same disruption scenario and receive ranked recommendations with confidence scores.
